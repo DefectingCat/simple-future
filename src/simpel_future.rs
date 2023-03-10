@@ -47,6 +47,10 @@ pub struct AndThenFut<FutureA, FutureB> {
     second: FutureB,
 }
 
+/// 一个SimpleFuture, 它使用顺序的方式，一个接一个地运行两个Future
+//
+// 注意: 由于本例子用于演示，因此功能简单，`AndThenFut` 会假设两个 Future 在创建时就可用了.
+// 而真实的`Andthen`允许根据第一个`Future`的输出来创建第二个`Future`，因此复杂的多。
 impl<FutureA, FutureB> SimpleFuture for AndThenFut<FutureA, FutureB>
 where
     FutureA: SimpleFuture<Output = ()>,
@@ -57,12 +61,15 @@ where
         if let Some(first) = &mut self.first {
             match first.poll(wake) {
                 Poll::Ready(()) => {
+                    // 完成了第一个 Futre，可以将其移除，然后准备开始第二个
                     self.first.take();
                 }
+                // 第一个 Future 还不能完成
                 Poll::Pending => return Poll::Pending,
             }
         }
 
+        // 第一个 Future 已经完成，尝试去完成第二个
         self.second.poll(wake)
     }
 }
