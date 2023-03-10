@@ -1,4 +1,4 @@
-pub mod simpel_future;
+pub mod future;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
