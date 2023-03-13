@@ -31,13 +31,13 @@ impl Future for TimerFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // 通过检查共享状态，来确定定时器是否已经完成
         let mut shared_state = self.shared_state.lock().unwrap();
-        let duration = shared_state.duration;
         if !shared_state.started {
             let thread_shared_state = self.shared_state.clone();
             thread::spawn(move || {
-                println!("start first execute");
-                thread::sleep(duration);
                 let mut shared_state = thread_shared_state.lock().unwrap();
+                println!("start first execute");
+                shared_state.started = true;
+                thread::sleep(shared_state.duration);
                 // 通知执行器定时器已经完成，可以继续`poll`对应的`Future`了
                 shared_state.completed = true;
                 if let Some(waker) = shared_state.waker.take() {

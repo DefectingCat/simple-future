@@ -8,7 +8,6 @@ use {
         sync::{Arc, Mutex},
         task::Context,
     },
-    // 引入之前实现的定时器模块
 };
 
 pub struct Executor {
