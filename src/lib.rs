@@ -2,17 +2,24 @@ pub mod executor;
 pub mod future;
 pub mod waker;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
+
+    use crate::{executor::new_executor_and_spawner, waker::TimerFuture};
 
     #[test]
     fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+        let (exec, spawner) = new_executor_and_spawner();
+
+        spawner.spawn(async {
+            println!("howdy!");
+            TimerFuture::new(Duration::new(2, 0)).await;
+            println!("done!")
+        });
+
+        drop(spawner);
+
+        exec.run();
     }
 }

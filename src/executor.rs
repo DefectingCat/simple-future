@@ -55,11 +55,16 @@ impl ArcWake for Task {
 impl Executor {
     pub fn run(&self) {
         while let Ok(task) = self.ready_queue.recv() {
+            // 获取一个future，若它还没有完成(仍然是Some，不是None)，则对它进行一次poll并尝试完成它
             let mut future_slot = task.future.lock().unwrap();
             if let Some(mut future) = future_slot.take() {
+                // 基于任务自身创建一个 `LocalWaker`
                 let waker = waker_ref(&task);
                 let context = &mut Context::from_waker(&*waker);
+                // `BoxFuture<T>`是`Pin<Box<dyn Future<Output = T> + Send + 'static>>`的类型别名
+                // 通过调用`as_mut`方法，可以将上面的类型转换成`Pin<&mut dyn Future + Send + 'static>`
                 if future.as_mut().poll(context).is_pending() {
+                    // Future还没执行完，因此将它放回任务中，等待下次被poll
                     *future_slot = Some(future)
                 }
             }

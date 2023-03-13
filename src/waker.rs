@@ -13,8 +13,14 @@ pub struct TimerFuture {
 
 /// 在 Future 和等待的线程间共享状态
 struct SharedState {
+    /// 是否已经开始过第一次 `poll`
+    started: bool,
+
     /// 定时（睡眠）是否结束
     completed: bool,
+
+    /// 定时时长
+    duration: Duration,
 
     /// 当睡眠结束后，线程可以用 `waker` 通知 `TimerFuture` 来唤醒任务
     waker: Option<Waker>,
@@ -25,6 +31,20 @@ impl Future for TimerFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // 通过检查共享状态，来确定定时器是否已经完成
         let mut shared_state = self.shared_state.lock().unwrap();
+        let duration = shared_state.duration;
+        if !shared_state.started {
+            let thread_shared_state = self.shared_state.clone();
+            thread::spawn(move || {
+                println!("start first execute");
+                thread::sleep(duration);
+                let mut shared_state = thread_shared_state.lock().unwrap();
+                // 通知执行器定时器已经完成，可以继续`poll`对应的`Future`了
+                shared_state.completed = true;
+                if let Some(waker) = shared_state.waker.take() {
+                    waker.wake()
+                }
+            });
+        }
         if shared_state.completed {
             Poll::Ready(())
         } else {
@@ -44,20 +64,11 @@ impl TimerFuture {
     /// 创建一个新的`TimerFuture`，在指定的时间结束后，该`Future`可以完成
     pub fn new(duration: Duration) -> Self {
         let shared_state = Arc::new(Mutex::new(SharedState {
+            started: false,
             completed: false,
+            duration,
             waker: None,
         }));
-
-        let thread_shared_state = shared_state.clone();
-        thread::spawn(move || {
-            thread::sleep(duration);
-            let mut shared_state = thread_shared_state.lock().unwrap();
-            // 通知执行器定时器已经完成，可以继续`poll`对应的`Future`了
-            shared_state.completed = true;
-            if let Some(waker) = shared_state.waker.take() {
-                waker.wake()
-            }
-        });
 
         TimerFuture { shared_state }
     }
